@@ -16,17 +16,25 @@ def power_law(image, gamma):
     return image_gamma_corrected
 
 
-def contrast_stretching(image):
-    # Compute the minimum and maximum pixel values in the image
-    min_val = np.min(image)
-    max_val = np.max(image)
-    
-    # Apply contrast stretching
-    stretched_image = ((image - min_val) / (max_val - min_val)) * 255.0
-    
-    # Convert the pixel values to uint8 data type
+def contrast_stretching(image, lower_threshold, upper_threshold):
+    # Chuyển đổi ảnh sang dạng grayscale nếu cần
+    if len(image.shape) > 2:
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray_image = image
+
+    # Tìm giá trị pixel tối thiểu và tối đa trong ảnh
+    min_val = np.min(gray_image)
+    max_val = np.max(gray_image)
+
+    # Thực hiện contrast stretching
+    stretched_image = np.where(gray_image < lower_threshold, 0,
+                               np.where(gray_image > upper_threshold, 255,
+                                        ((gray_image - lower_threshold) / (upper_threshold - lower_threshold)) * 255))
+
+    # Chuyển đổi ảnh về dạng uint8
     stretched_image = np.uint8(stretched_image)
-    
+
     return stretched_image
 
 
