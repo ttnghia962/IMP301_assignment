@@ -73,3 +73,5 @@ def rotate_image(image, angle):
     rotated_image = cv2.warpAffine(image, rotation_matrix, (width, height))
     
     return rotated_image
+
+print("hello")
