@@ -75,3 +75,4 @@ def rotate_image(image, angle):
     return rotated_image
 
 print("hello")
+print('hello baby')
