@@ -1,42 +1,34 @@
-import numpy as np
-import librosa
-import librosa.display
-import matplotlib.pyplot as plt
+from pydub import AudioSegment
+from pydub.playback import play
+from pydub import AudioSegment
 
-def treble_boost_equalizer(y, sr, boost_factor=2.0):
-    # Tính toán Fourier Transform của tín hiệu âm thanh
-    D = librosa.stft(y)
-    
-    # Lấy amplitudes và pha của tần số
-    mag, phase = librosa.magphase(D)
-    
-    # Tăng cường amplitudes của tần số cao (treble)
-    mag_high_boosted = mag * boost_factor
-    
-    # Tạo một ma trận mới từ amplitudes đã tăng cường và pha ban đầu
-    D_high_boosted = mag_high_boosted * np.exp(1j * phase)
-    
-    # Tính toán tín hiệu mới từ biến đổi ngược Fourier
-    y_high_boosted = librosa.istft(D_high_boosted)
-    
-    return y_high_boosted
 
-# Đọc file âm thanh
-input_audio_path = 'path/to/your/audio/file.mp3'
-y, sr = librosa.load(input_audio_path)
+def happy_filter(input_file, output_file, treble_boost, bass_cut, compressor_ratio, compressor_attack, compressor_release):
+    # Đọc file âm thanh đầu vào
+    sound = AudioSegment.from_mp3(input_file)
 
-# Áp dụng Equalizer
-y_boosted = treble_boost_equalizer(y, sr)
+    # Tăng cường âm treble và hạ bass
+    sound = sound + treble_boost
+    sound = sound - bass_cut
 
-# Hiển thị biểu đồ tín hiệu âm thanh gốc và đã tăng cường
-plt.figure(figsize=(10, 6))
-plt.subplot(2, 1, 1)
-librosa.display.waveshow(y, sr=sr)
-plt.title('Original Audio')
+    # Áp dụng hiệu ứng compressor
+    sound = sound.compress_dynamic_range(ratio=compressor_ratio, attack=compressor_attack, release=compressor_release)
 
-plt.subplot(2, 1, 2)
-librosa.display.waveshow(y_boosted, sr=sr)
-plt.title('Treble Boosted Audio')
+    # Ghi âm thanh đã lọc ra file mới
+    sound.export(output_file, format="mp3")
 
-plt.tight_layout()
-plt.show()
+    print("Equalizer and RAP filter applied successfully!")
+
+if __name__ == "__main__":
+    # Thay đổi đường dẫn file input và output tùy thuộc vào nhu cầu của bạn
+    input_file = "E:/IMP301_assignment/wd.mp3"
+    output_file = "E:/IMP301_assignment/output/wd_filtered.mp3"
+
+    treble_boost = 10  # dB
+    bass_cut = 3  # dB
+    compressor_ratio = 8.0  # Tỷ lệ nén của compressor
+    compressor_attack = 10  # Thời gian attack của compressor (ms)
+    compressor_release = 200  # Thời gian release của compressor (ms)
+
+    # apply_equalizer(input_file, output_file, treble_boost, bass_cut)
+    happy_filter(input_file, output_file, treble_boost, bass_cut, compressor_ratio, compressor_attack, compressor_release)
