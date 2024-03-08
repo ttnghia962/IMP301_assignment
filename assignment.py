@@ -1,8 +1,15 @@
 import cv2
 import os
 import numpy as np
+import tkinter as tk
+from tkinter import ttk
+from tkinter import font as tkfont
+from tkinter import messagebox
+import json
+from tkinter import filedialog
+from PIL import Image, ImageTk
 
-
+# filter
 def power_law(image, gamma):
     # Normalize the pixel values to the range [0, 1]
     image_normalized = image / 255.0
@@ -124,9 +131,7 @@ def rotate_image(image, angle):
     return rotated_image
 
 
-def gaussian_filter(img_path, sigma):
-    image = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-
+def gaussian_filter(image, sigma):
     f_transform = np.fft.fft2(image)
     f_shift = np.fft.fftshift(f_transform)
 
@@ -140,9 +145,7 @@ def gaussian_filter(img_path, sigma):
     return image_filtered_gaussian
 
 
-def butterworth_filter(img_path, D0, n):
-    image = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-
+def butterworth_filter(image, D0, n):
     f_transform = np.fft.fft2(image)
     f_shift = np.fft.fftshift(f_transform)
 
@@ -196,7 +199,7 @@ def median_blur(image, kernel_size):
     return blurred_image
 
 
-
+# read image
 
 def read_images_in_folder(folder_path):
     image_list = []
@@ -216,4 +219,38 @@ def read_images_in_folder(folder_path):
                 print(f"Không thể đọc ảnh từ {image_path}")
     
     return image_list
+
+
+def save_to_new_folder(image, folder_path, filename):
+    os.makedirs(folder_path, exist_ok=True)
+    output_path = os.path.join(folder_path, filename)
+    cv2.imwrite(output_path, image)
+
+
+def process_data(image_path, folder_path, gamma, lower_threshold, upper_threshold, shear_factor, angle, sigma, D0, n, ratio, amount, kernel_size):
+    image_list = read_images_in_folder(image_path)
+    for image in image_list:
+        # convert image
+        img_gamma = power_law(image, gamma)
+        img_contrast = contrast_stretching(image, lower_threshold, upper_threshold)
+        img_shear_vertical = shear_vertical(image, shear_factor)
+        img_shear_horizontal = shear_horizontal(image, shear_factor)
+        img_rotate = rotate_image(image, angle)
+        img_gaussian = gaussian_filter(image, sigma)
+        img_butterworth = butterworth_filter(image, D0, n)
+        img_salt_and_pepper = add_salt_and_pepper_noise(image, ratio, amount)
+        img_grayscale = grayscale_formula(image)
+        img_medianblur = median_blur(image, kernel_size)
+
+        # process new data
+        save_to_new_folder(img_gamma, folder_path)
+        save_to_new_folder(img_shear_vertical, folder_path)
+        save_to_new_folder(img_contrast, folder_path)
+        save_to_new_folder(img_shear_horizontal, folder_path)
+        save_to_new_folder(img_rotate, folder_path)
+        save_to_new_folder(img_gaussian, folder_path)
+        save_to_new_folder(img_butterworth, folder_path)
+        save_to_new_folder(img_salt_and_pepper, folder_path)
+        save_to_new_folder(img_grayscale, folder_path)
+        save_to_new_folder(img_medianblur, folder_path)
 
