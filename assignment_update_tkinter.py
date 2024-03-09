@@ -13,9 +13,10 @@ root = tk.Tk()
 root.geometry('1080x720')
 root.title('process data')
 
-image_path = r"C:\Users\ndhdu\Downloads\43eb02fd44a7e8f9b1b6.jpg"
-bgr_image = cv2.imread(image_path)
-gray_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
+image_path = r"1.jpg"
+img_rgb = cv2.imread(image_path)
+gray_image = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
+
 
 def contrast_page():
     global lower_scale, upper_scale, lower_entry, upper_entry, img_label, gray_image
@@ -46,16 +47,16 @@ def contrast_page():
         img_label.config(image=img)
         img_label.image = img
 
-    def on_scale_change(event):
+    def on_scale_change(value):
         lower = lower_scale.get()
         upper = upper_scale.get()
         lower_entry.delete(0, tk.END)
-        lower_entry.insert(0, str(lower))
         upper_entry.delete(0, tk.END)
+        lower_entry.insert(0, str(lower))
         upper_entry.insert(0, str(upper))
         update_image(lower, upper, img_label)
 
-    def on_entry_change(event):
+    def on_entry_change(value):
         lower = int(lower_entry.get())
         upper = int(upper_entry.get())
         lower_scale.set(lower)
@@ -382,22 +383,30 @@ def rotate_image_page():
 def gaussian_filter_page():
     global sigma_scale, sigma_entry, img_label, gray_image
     
-    gaussian_frame = tk.Frame(main_frame)
-    
+    filter_frame = tk.Frame(main_frame)
     def gaussian_filter(image, sigma):
-        f_transform = np.fft.fft2(image)
-        f_shift = np.fft.fftshift(f_transform)
+        # Convert image to frequency domain
+        f_img = np.fft.fft2(image)
+        fshift = np.fft.fftshift(f_img)
 
-        rows, cols = image.shape
+        # Calculate dimensions of frequency domain image
+        rows, cols = f_img.shape
+
+        # Calculate center of frequency domain image
         crow, ccol = rows // 2, cols // 2
-        x, y = np.meshgrid(np.arange(cols), np.arange(rows))
 
-        gaussian_filter = np.exp(-((x - ccol) ** 2 + (y - crow) ** 2) / (2 * sigma ** 2))
-        
-        f_transform_filtered_gaussian = f_shift * gaussian_filter
-        image_filtered_gaussian = np.fft.ifft2(np.fft.ifftshift(f_transform_filtered_gaussian)).real
-        return image_filtered_gaussian
+        # Generate Gaussian filter mask based on frequency domain dimensions
+        gaussian_filter = np.exp(-((np.arange(rows) - crow) ** 2 + (np.arange(cols) - ccol) ** 2) / (2 * sigma ** 2))
 
+        # Apply Gaussian filter in frequency domain
+        filtered_fshift = fshift * gaussian_filter
+
+        # Convert filtered image back to spatial domain
+        filtered_f_img = np.fft.ifftshift(filtered_fshift)
+        filtered_img = np.fft.ifft2(filtered_f_img)
+        filtered_img = np.abs(filtered_img)
+
+        return filtered_img
 
     def update_image(sigma):
         global img_label, gray_image
@@ -419,12 +428,12 @@ def gaussian_filter_page():
         update_image(sigma)
 
     # Tạo thanh trượt cho sigma
-    sigma_scale = ttk.Scale(gaussian_frame, from_=0.1, to=10.0, orient="horizontal", length=200, command=on_scale_change)
-    sigma_scale.set(1.0)
+    sigma_scale = ttk.Scale(filter_frame, from_=20, to=40, orient="horizontal", length=200, command=on_scale_change)
+    sigma_scale.set(1)
     sigma_scale.pack(padx=10, pady=5)
 
     # Tạo ô nhập số cho sigma
-    sigma_frame = ttk.Frame(gaussian_frame)
+    sigma_frame = ttk.Frame(filter_frame)
     sigma_frame.pack(padx=10, pady=5)
     sigma_label = ttk.Label(sigma_frame, text="Sigma:")
     sigma_label.grid(row=0, column=0)
@@ -434,11 +443,174 @@ def gaussian_filter_page():
     sigma_entry.bind("<Return>", on_entry_change)
 
     # Hiển thị ảnh gốc
-    img_label = tk.Label(gaussian_frame)
+    img_label = tk.Label(filter_frame)
     img_label.pack(padx=10, pady=5)
 
     update_image(sigma_scale.get())
-    gaussian_frame.pack(pady=10, padx=10, side=tk.LEFT)  # Đặt khung Gaussian vào main_frame
+    filter_frame.pack(pady=10, padx=10, side=tk.LEFT)  # Đặt khung filter vào main_frame
+# ____________________________________________________________________________________
+def butterworth_filter_page():
+    global D0_scale, D0_entry, n_scale, n_entry, img_label, gray_image
+    
+    filter_frame = tk.Frame(main_frame)
+    def butterworth_filter(image, D0, n):
+        f_transform = np.fft.fft2(image)
+        f_shift = np.fft.fftshift(f_transform)
+
+        height, width = image.shape[:2]  # Sử dụng height và width từ ảnh
+
+        crow, ccol = height // 2, width // 2
+
+        butterworth_filter = 1 / (1 + ((np.arange(height) - crow) ** 2 + (np.arange(width) - ccol) ** 2) / D0 ** 2) ** n
+
+        f_transform_filtered_butterworth = f_shift * butterworth_filter
+        image_filtered_butterworth = np.fft.ifft2(np.fft.ifftshift(f_transform_filtered_butterworth)).real
+        
+        return image_filtered_butterworth
+
+    def update_image(D0, n):
+        global img_label, gray_image
+        filtered_image = butterworth_filter(gray_image, D0, n)
+        img = Image.fromarray(filtered_image)
+        img = ImageTk.PhotoImage(img)
+        img_label.config(image=img)
+        img_label.image = img
+
+    def on_scale_change(event):
+        D0 = D0_scale.get()
+        n = n_scale.get()
+        D0_entry.delete(0, tk.END)
+        D0_entry.insert(0, str(D0))
+        n_entry.delete(0, tk.END)
+        n_entry.insert(0, str(n))
+        update_image(D0, n)
+
+    def on_entry_change(event):
+        D0 = float(D0_entry.get())
+        n = float(n_entry.get())
+        D0_scale.set(D0)
+        n_scale.set(n)
+        update_image(D0, n)
+
+    # Tạo thanh trượt cho D0 và n
+    D0_scale = ttk.Scale(filter_frame, from_=1, to=100, orient="horizontal", length=200, command=on_scale_change)
+    D0_scale.set(10)
+    D0_scale.pack(padx=10, pady=5)
+
+    n_scale = ttk.Scale(filter_frame, from_=1, to=10, orient="horizontal", length=200, command=on_scale_change)
+    n_scale.set(2)
+    n_scale.pack(padx=10, pady=5)
+
+    # Tạo ô nhập số cho D0 và n
+    D0_frame = ttk.Frame(filter_frame)
+    D0_frame.pack(padx=10, pady=5)
+    D0_label = ttk.Label(D0_frame, text="D0:")
+    D0_label.grid(row=0, column=0)
+    D0_entry = ttk.Entry(D0_frame)
+    D0_entry.grid(row=0, column=1)
+    D0_entry.insert(0, str(D0_scale.get()))
+    D0_entry.bind("<Return>", on_entry_change)
+
+    n_frame = ttk.Frame(filter_frame)
+    n_frame.pack(padx=10, pady=5)
+    n_label = ttk.Label(n_frame, text="n:")
+    n_label.grid(row=0, column=0)
+    n_entry = ttk.Entry(n_frame)
+    n_entry.grid(row=0, column=1)
+    n_entry.insert(0, str(n_scale.get()))
+    n_entry.bind("<Return>", on_entry_change)
+
+    # Hiển thị ảnh gốc
+    img_label = tk.Label(filter_frame)
+    img_label.pack(padx=10, pady=5)
+
+    update_image(D0_scale.get(), n_scale.get())
+    filter_frame.pack(pady=10, padx=10, side=tk.LEFT)  # Đặt khung filter vào main_frame
+# ____________________________________________________________________________________
+def salt_and_pepper_noise_page():
+    global salt_vs_pepper_ratio_scale, amount_scale, salt_vs_pepper_ratio_entry, amount_entry, img_label, img_rgb
+    
+    noise_frame = tk.Frame(main_frame)
+    
+    def add_salt_and_pepper_noise(image, salt_vs_pepper_ratio, amount):
+        noisy_image = np.copy(image)
+        num_pixels = image.size
+        
+        # Tính số lượng pixel nhiễu muối và tiêu
+        num_salt = int(np.ceil(amount * num_pixels * salt_vs_pepper_ratio))
+        num_pepper = int(np.ceil(amount * num_pixels * (1.0 - salt_vs_pepper_ratio)))
+
+        # Thêm nhiễu muối
+        coords = [np.random.randint(0, i - 1, num_salt) for i in image.shape]
+        noisy_image[coords[0], coords[1]] = 255
+
+        # Thêm nhiễu tiêu
+        coords = [np.random.randint(0, i - 1, num_pepper) for i in image.shape]
+        noisy_image[coords[0], coords[1]] = 0
+
+        return noisy_image
+
+    def update_image(salt_vs_pepper_ratio, amount):
+        global img_label, gray_image
+        noisy_image = add_salt_and_pepper_noise(gray_image, salt_vs_pepper_ratio, amount)
+        img = Image.fromarray(noisy_image)
+        img = ImageTk.PhotoImage(img)
+        img_label.config(image=img)
+        img_label.image = img
+
+    def on_scale_change(event):
+        salt_vs_pepper_ratio = salt_vs_pepper_ratio_scale.get()
+        amount = amount_scale.get()
+        salt_vs_pepper_ratio_entry.delete(0, tk.END)
+        salt_vs_pepper_ratio_entry.insert(0, str(salt_vs_pepper_ratio))
+        amount_entry.delete(0, tk.END)
+        amount_entry.insert(0, str(amount))
+        update_image(salt_vs_pepper_ratio, amount)
+
+    def on_entry_change(event):
+        salt_vs_pepper_ratio = float(salt_vs_pepper_ratio_entry.get())
+        amount = float(amount_entry.get())
+        salt_vs_pepper_ratio_scale.set(salt_vs_pepper_ratio)
+        amount_scale.set(amount)
+        update_image(salt_vs_pepper_ratio, amount)
+
+
+    # Tạo thanh trượt cho tỷ lệ muối và tiêu
+    salt_vs_pepper_ratio_scale = ttk.Scale(noise_frame, from_=0, to=1, orient="horizontal", length=200, command=on_scale_change)
+    salt_vs_pepper_ratio_scale.set(0.5)
+    salt_vs_pepper_ratio_scale.pack(padx=10, pady=5)
+
+    # Tạo ô nhập số cho tỷ lệ muối và tiêu
+    salt_vs_pepper_ratio_frame = ttk.Frame(noise_frame)
+    salt_vs_pepper_ratio_frame.pack(padx=10, pady=5)
+    salt_vs_pepper_ratio_label = ttk.Label(salt_vs_pepper_ratio_frame, text="Salt vs Pepper Ratio:")
+    salt_vs_pepper_ratio_label.grid(row=0, column=0)
+    salt_vs_pepper_ratio_entry = ttk.Entry(salt_vs_pepper_ratio_frame)
+    salt_vs_pepper_ratio_entry.grid(row=0, column=1)
+    salt_vs_pepper_ratio_entry.insert(0, str(salt_vs_pepper_ratio_scale.get()))
+    salt_vs_pepper_ratio_entry.bind("<Return>", on_entry_change)
+
+    # Tạo thanh trượt cho lượng nhiễu
+    amount_scale = ttk.Scale(noise_frame, from_=0, to=0.1, orient="horizontal", length=200, command=on_scale_change)
+    amount_scale.set(0.05)
+    amount_scale.pack(padx=10, pady=5)
+
+    # Tạo ô nhập số cho lượng nhiễu
+    amount_frame = ttk.Frame(noise_frame)
+    amount_frame.pack(padx=10, pady=5)
+    amount_label = ttk.Label(amount_frame, text="Noise Amount:")
+    amount_label.grid(row=0, column=0)
+    amount_entry = ttk.Entry(amount_frame)
+    amount_entry.grid(row=0, column=1)
+    amount_entry.insert(0, str(amount_scale.get()))
+    amount_entry.bind("<Return>", on_entry_change)
+
+    # Hiển thị ảnh gốc
+    img_label = tk.Label(noise_frame)
+    img_label.pack(padx=10, pady=5)
+
+    update_image(salt_vs_pepper_ratio_scale.get(), amount_scale.get())
+    noise_frame.pack(pady=10, padx=10, side=tk.LEFT)  # Đặt khung noise vào main_frame
 # ____________________________________________________________________________________
 def grayscale_formula_page():
     global img_label, img_rgb
@@ -473,10 +645,6 @@ def grayscale_formula_page():
         img_label.config(image=img)
         img_label.image = img
 
-    # Load ảnh gốc
-    image_path = r"C:\Users\ndhdu\Downloads\43eb02fd44a7e8f9b1b6.jpg"
-    img_rgb = cv2.imread(image_path)
-
     # Hiển thị ảnh gốc
     original_button = tk.Button(grayscale_frame, text="Original Image", command=update_image_original)
     original_button.pack(padx=10, pady=5)
@@ -493,79 +661,60 @@ def grayscale_formula_page():
     grayscale_frame.pack(pady=10, padx=10, side=tk.LEFT)  # Đặt khung Grayscale vào main_frame
 # ____________________________________________________________________________________
 def median_blur_page():
-    global img_label, img_rgb
+    global kernel_scale, kernel_entry, img_label, gray_image
     
-    median_blur_frame = tk.Frame(main_frame)
-    
+    blur_frame = tk.Frame(main_frame)
+
     def median_blur(image, kernel_size):
-        # Get image dimensions
-        height, width = image.shape[:2]
-        
-        # Initialize the output image
-        blurred_image = np.zeros_like(image)
-        
-        # Calculate the border width based on the kernel size
-        border_width = kernel_size // 2
-        
-        # Iterate over each pixel in the image
-        for y in range(height):
-            for x in range(width):
-                # Extract the neighborhood of the current pixel
-                neighborhood = image[max(0, y - border_width):min(height, y + border_width + 1),
-                                    max(0, x - border_width):min(width, x + border_width + 1)]
-                
-                # Calculate the median value of the neighborhood
-                median_value = np.median(neighborhood)
-                
-                # Assign the median value to the corresponding pixel in the output image
-                blurred_image[y, x] = median_value
-        
+        kernel_size = int(kernel_size)
+        # Áp dụng Median Blur
+        blurred_image = cv2.medianBlur(image, kernel_size)
         return blurred_image
 
-    def update_image_median_blur(kernel_size):
-        global img_label, img_rgb
-        blurred_image = median_blur(img_rgb, kernel_size)
-        img = Image.fromarray(cv2.cvtColor(blurred_image, cv2.COLOR_BGR2RGB))
+    def update_image(kernel_size):
+        global img_label, gray_image
+        blurred_image = median_blur(gray_image, kernel_size)
+        img = Image.fromarray(blurred_image)
         img = ImageTk.PhotoImage(img)
         img_label.config(image=img)
         img_label.image = img
 
-    def on_scale_change_median_blur(event):
-        kernel_size = kernel_size_scale.get()
-        kernel_size_entry.delete(0, tk.END)
-        kernel_size_entry.insert(0, str(kernel_size))
-        update_image_median_blur(kernel_size)
+    def on_scale_change(event):
+        kernel_size = kernel_scale.get()
+        kernel_entry.delete(0, tk.END)
+        kernel_entry.insert(0, str(kernel_size))
+        update_image(kernel_size)
 
-    def on_entry_change_median_blur(event):
-        kernel_size = int(kernel_size_entry.get())
-        kernel_size_scale.set(kernel_size)
-        update_image_median_blur(kernel_size)
+    def on_entry_change(event):
+        kernel_size = int(kernel_entry.get())
+        kernel_scale.set(kernel_size)
+        update_image(kernel_size)
 
     # Load ảnh gốc
     image_path = r"C:\Users\ndhdu\Downloads\43eb02fd44a7e8f9b1b6.jpg"
     img_rgb = cv2.imread(image_path)
 
     # Tạo thanh trượt cho kích thước kernel
-    kernel_size_scale = ttk.Scale(median_blur_frame, from_=3, to=15, orient="horizontal", length=200, command=on_scale_change_median_blur)
-    kernel_size_scale.set(3)
-    kernel_size_scale.pack(padx=10, pady=5)
+    kernel_scale = ttk.Scale(blur_frame, from_=3, to=15, orient="horizontal", length=200, command=on_scale_change)
+    kernel_scale.set(3)
+    kernel_scale.pack(padx=10, pady=5)
 
     # Tạo ô nhập số cho kích thước kernel
-    kernel_size_frame = ttk.Frame(median_blur_frame)
-    kernel_size_frame.pack(padx=10, pady=5)
-    kernel_size_label = ttk.Label(kernel_size_frame, text="Kernel Size:")
-    kernel_size_label.grid(row=0, column=0)
-    kernel_size_entry = ttk.Entry(kernel_size_frame)
-    kernel_size_entry.grid(row=0, column=1)
-    kernel_size_entry.insert(0, str(kernel_size_scale.get()))
-    kernel_size_entry.bind("<Return>", on_entry_change_median_blur)
+    kernel_frame = ttk.Frame(blur_frame)
+    kernel_frame.pack(padx=10, pady=5)
+    kernel_label = ttk.Label(kernel_frame, text="Kernel Size:")
+    kernel_label.grid(row=0, column=0)
+    kernel_entry = ttk.Entry(kernel_frame)
+    kernel_entry.grid(row=0, column=1)
+    kernel_entry.insert(0, str(kernel_scale.get()))
+    kernel_entry.bind("<Return>", on_entry_change)
 
     # Hiển thị ảnh gốc
-    img_label = tk.Label(median_blur_frame)
+    img_label = tk.Label(blur_frame)
     img_label.pack(padx=10, pady=5)
 
-    update_image_median_blur(3)
-    median_blur_frame.pack(pady=10, padx=10, side=tk.LEFT)  # Đặt khung Median Blur vào main_frame
+    update_image(kernel_scale.get())
+    blur_frame.pack(pady=10, padx=10, side=tk.LEFT)  # Đặt khung blur vào main_frame
 
 def delete_pages():
     for frame in main_frame.winfo_children():
@@ -595,11 +744,17 @@ contrast_button.place(x=20, y=250)
 contrast_button = tk.Button(option_frame, text='Gaussian(freq domain)', font=('Bold', 15), fg='#158aff', bd=0, bg='#c3c3c3', command=lambda: indicate(gaussian_filter_page))
 contrast_button.place(x=20, y=300)
 
-contrast_button = tk.Button(option_frame, text='Grayscale', font=('Bold', 15), fg='#158aff', bd=0, bg='#c3c3c3', command=lambda: indicate(grayscale_formula_page))
+contrast_button = tk.Button(option_frame, text='Butterworth(freq domain)', font=('Bold', 15), fg='#158aff', bd=0, bg='#c3c3c3', command=lambda: indicate(butterworth_filter_page))
 contrast_button.place(x=20, y=350)
 
-contrast_button = tk.Button(option_frame, text='Median Blur', font=('Bold', 15), fg='#158aff', bd=0, bg='#c3c3c3', command=lambda: indicate(median_blur_page))
+contrast_button = tk.Button(option_frame, text='Salt and Pepper(freq domain)', font=('Bold', 15), fg='#158aff', bd=0, bg='#c3c3c3', command=lambda: indicate(salt_and_pepper_noise_page))
 contrast_button.place(x=20, y=400)
+
+contrast_button = tk.Button(option_frame, text='Grayscale', font=('Bold', 15), fg='#158aff', bd=0, bg='#c3c3c3', command=lambda: indicate(grayscale_formula_page))
+contrast_button.place(x=20, y=450)
+
+contrast_button = tk.Button(option_frame, text='Median Blur', font=('Bold', 15), fg='#158aff', bd=0, bg='#c3c3c3', command=lambda: indicate(median_blur_page))
+contrast_button.place(x=20, y=500)
 
 option_frame.pack(side=tk.LEFT)
 option_frame.pack_propagate(False)
